@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Connection Test</title>
+    <script src="./lib.umd.js"></script>
+</head>
+<body>
+    <h1>Connect to Agent</h1>
+    <div>
+        <label for="agentId">Agent ID:</label>
+        <input type="text" id="agentId" value="YOUR_AGENT_ID_HERE">
+    </div>
+    <button id="connectButton">Connect</button>
+    <div id="status">Status: Not Connected</div>
+    <div id="messages">
+        <h2>Messages:</h2>
+        <ul id="messageList"></ul>
+    </div>
+
+    <script>
+        let conversation; // To store the conversation object
+
+        // Basic callback implementations
+        const onConnect = ({ conversationId }) => {
+            document.getElementById('status').textContent = `Status: Connected! Conversation ID: ${conversationId}`;
+            console.log("Successfully connected. Conversation ID:", conversationId);
+        };
+
+        const onDisconnect = (details) => {
+            document.getElementById('status').textContent = `Status: Disconnected. Reason: ${details.reason}`;
+            console.log("Disconnected:", details);
+        };
+
+        const onError = (errorMessage, context) => {
+            document.getElementById('status').textContent = `Status: Error - ${errorMessage}`;
+            console.error("Error:", errorMessage, context);
+            if (conversation) {
+                conversation.endSession().catch(err => console.error("Error ending session:", err));
+            }
+        };
+
+        const onMessage = ({ source, message }) => {
+            console.log("Message received:", { source, message });
+            const messageList = document.getElementById('messageList');
+            const listItem = document.createElement('li');
+            listItem.textContent = `[${source}]: ${message}`;
+            messageList.appendChild(listItem);
+        };
+
+        const onStatusChange = ({ status }) => {
+            console.log("Status changed:", status);
+             document.getElementById('status').textContent = `Status: ${status}`;
+        };
+
+        document.getElementById('connectButton').addEventListener('click', async () => {
+            const agentId = document.getElementById('agentId').value;
+            if (!agentId) {
+                alert("Please enter an Agent ID.");
+                return;
+            }
+
+            if (conversation && conversation.isOpen()) {
+                console.log("A conversation is already open. Disconnecting first.");
+                await conversation.endSession();
+                conversation = null;
+                 document.getElementById('messageList').innerHTML = ''; // Clear previous messages
+            }
+
+
+            document.getElementById('status').textContent = "Status: Connecting...";
+            console.log(`Attempting to connect to agent: ${agentId}`);
+
+            try {
+                // The Conversation object is available under window.client.Conversation
+                conversation = await window.client.Conversation.startSession({
+                    agentId: agentId,
+                    // You might need to add 'authorization' here if your agent requires it
+                    // authorization: "YOUR_ELEVENLABS_API_KEY", // or "bearer.YOUR_TOKEN"
+                    onConnect: onConnect,
+                    onDisconnect: onDisconnect,
+                    onError: onError,
+                    onMessage: onMessage,
+                    onStatusChange: onStatusChange,
+                    // Add other callbacks as needed
+                    onDebug: (debugInfo) => console.debug("Debug:", debugInfo),
+                    onAudio: (audioBase64) => console.log("Audio chunk received (base64, length):", audioBase64.length),
+                    onModeChange: ({ mode }) => console.log("Mode changed:", mode),
+                    onCanSendFeedbackChange: ({ canSendFeedback }) => console.log("Can send feedback:", canSendFeedback),
+                });
+                // The onConnect callback will update the status upon successful connection
+            } catch (error) {
+                onError("Failed to start session", error);
+            }
+        });
+    </script>
+</body>
+</html>
